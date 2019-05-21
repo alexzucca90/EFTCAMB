@@ -265,6 +265,8 @@ $(OUTPUT_DIR)/03_abstract_EFTCAMB_cache.o :  \
 	$(OUTPUT_DIR)/utils.o
 
 $(OUTPUT_DIR)/11_EFTCAMB_main.o :  \
+	$(OUTPUT_DIR)/07p2_Pure_EFT_mod.o \
+	$(OUTPUT_DIR)/09p3_Designer_GBD.o \
 	$(OUTPUT_DIR)/09p1_Designer_fR.o \
 	$(OUTPUT_DIR)/06_abstract_EFTCAMB_model.o \
 	$(OUTPUT_DIR)/06p1_abstract_EFTCAMB_full_map.o \
@@ -716,6 +718,8 @@ $(DLL_DIR)/03_abstract_EFTCAMB_cache.o :  \
 	$(DLL_DIR)/utils.o
 
 $(DLL_DIR)/11_EFTCAMB_main.o :  \
+	$(DLL_DIR)/07p2_Pure_EFT_mod.o \
+	$(DLL_DIR)/09p3_Designer_GBD.o \
 	$(DLL_DIR)/09p1_Designer_fR.o \
 	$(DLL_DIR)/06_abstract_EFTCAMB_model.o \
 	$(DLL_DIR)/06p1_abstract_EFTCAMB_full_map.o \

@@ -41,6 +41,11 @@ module EFTCAMB_main
     use EFTCAMB_Kmouflage_Mod
     use EFTCAMB_FM_quintessence
 
+    !> AZ MOD START: adding de_recon modules
+    use EFTCAMB_designer_GBD
+    use EFTCAMB_pure_EFT_mod
+    !< AZ MOD END
+
     implicit none
 
     private
@@ -279,6 +284,11 @@ contains
                     case(1)
                         allocate( EFTCAMB_std_pure_EFT::self%model )
                         call self%model%init( 'Standard Pure EFT', 'Standard Pure EFT' )
+                    !> AZ MOD START: adding pure EFT with xDE module
+                    case(2)
+                        allocate( EFTCAMB_mod_pure_EFT::self%model)
+                        call self%model%init( 'Modified Pure EFT', 'Modified Pure EFT' )
+                    !< AZ MOD END
                     case default
                         write(*,'(a,I3)') 'No model corresponding to EFTFlag =', self%EFTflag
                         write(*,'(a,I3)') 'and PureEFTmodel =', self%PureEFTmodel
@@ -310,6 +320,11 @@ contains
                     case(2)
                         allocate( EFTCAMB_des_mc_quint::self%model )
                         call self%model%init( 'Designer minimally coupled quintessence', 'Designer minimally coupled quintessence' )
+                    !> AZ MOD START: adding designer GBD
+                    case(3)
+                        allocate( EFTCAMB_GBD_designer::self%model)
+                        call self%model%init( 'Designer GBD', 'Designer GBD' )
+                    !< AZ MOD END
                     case default
                         write(*,'(a,I3)') 'No model corresponding to EFTFlag =', self%EFTflag
                         write(*,'(a,I3)') 'and DesignerEFTmodel =', self%DesignerEFTmodel
