@@ -464,8 +464,6 @@ contains
             write(*,*) "dN:",dN
         end if
 
-
-
         !> Loop to fill the interpolation arrays
         do  i = 1, self%EFTOmega%num_points
 

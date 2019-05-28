@@ -84,7 +84,6 @@ contains
 
         ! 1) stability code:
         success = .true.
-
         !    - linear sampling:
         if ( success ) then
             call EFTStability_cleanup()
@@ -178,7 +177,6 @@ contains
         call EFTStabilityComputation( a, input_EFTCAMB, input_EFTCAMB%model, params_cache, eft_cache )
         ! protect against k_max too small:
         if ( k_max < 0.1_dl ) k_max = 0.1_dl
-
         ! check stability of the theory:
         ! 0) dtauda should be finite:
         test_dtauda = dtauda(a)
@@ -396,6 +394,7 @@ contains
         real(dl) :: grhonu, gpinu, grhormass_t, grhonudot, gpinudot
         integer  :: nu_i, ind, ind_max
 
+
         ! start filling the cache:
         eft_cache%a = a
         ! compute background densities of different species
@@ -418,6 +417,7 @@ contains
         eft_cache%grhom_t  = eft_cache%grhob_t +eft_cache%grhoc_t +eft_cache%grhor_t +eft_cache%grhog_t +eft_cache%grhonu_tot
         eft_cache%gpresm_t = (+eft_cache%grhor_t +eft_cache%grhog_t)/3._dl +eft_cache%gpinu_tot
         ! compute the other things:
+
         select type ( model_temp => input_model )
             ! compute the background and the background EFT functions.
             class is ( EFTCAMB_full_model )

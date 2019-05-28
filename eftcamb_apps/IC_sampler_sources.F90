@@ -2,7 +2,7 @@
 !
 ! This file is part of EFTCAMB.
 !
-! Copyright (C) 2013-2019 by the EFTCAMB authors
+! Copyright (C) 2013-2017 by the EFTCAMB authors
 !
 ! The EFTCAMB code is free software;
 ! You can use it, redistribute it, and/or modify it under the terms
@@ -13,7 +13,7 @@
 !
 !----------------------------------------------------------------------------------------
 
-!> @file stability_sampler.F90
+!> @file xDE_sampler.F90
 !! This application takes care of doing 1D and 2D parameter space sampling enforcing
 !! EFTCAMB viability conditions, as specified by a parameter file.
 !! Part of this file is taken from the inidriver file of CAMB.
@@ -29,7 +29,7 @@ module hardcoded_options
 end module hardcoded_options
 
 ! the program itself:
-program stability_sampler
+program IC_sampler
 
     use IniFile
     use CAMB
@@ -42,11 +42,19 @@ program stability_sampler
     use CAMBmain
     use omp_lib
     use EFTCAMB_stability
+    use NonLinear
+
+    !> use the sampling xDE class
+    !use EFT_sampler
+    use EFTCAMB_cache
     ! use EFTCAMB_cache
 #ifdef NAGF95
     use F90_UNIX
 #endif
     use hardcoded_options
+
+
+
 
     implicit none
 
@@ -60,6 +68,12 @@ program stability_sampler
         MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
     character(LEN=8) name_1, name_2
     real(dl) output_factor, nmassive
+
+    !> sources parameters
+    character(LEN=Ini_max_string_len) S,TransferClFileNames(max_transfer_redshifts)
+    Type (TRedWin), pointer :: RedWin
+
+    !> this is part of the sampler parameters.
     real(dl)  t2, param_1_max, param_1_min, param_2_max, param_2_min
     real(dl),allocatable :: t1(:)
     integer param_number, iter, nu_i
@@ -69,6 +83,37 @@ program stability_sampler
 #ifdef WRITE_FITS
     character(LEN=Ini_max_string_len) FITSfilename
 #endif
+
+
+logical :: DoCounts = .false.
+
+    !> IC MOD START: adding the parameters for the sampling of xDE
+    integer, parameter :: n_samples = 10000
+    !integer :: n_ic = 100   !< extra boost of IC
+    integer :: num_success=0
+    integer :: i_sample
+    integer :: model_params_num
+    real(dl), dimension(:), allocatable :: random_params
+    real(dl) :: param1_max, param1_min
+    real(dl) :: param2_max, param2_min
+    real(dl) :: param3_max, param3_min
+    real(dl) :: param4_max, param4_min
+    real(dl) :: param5_max, param5_min
+    real(dl) :: param6_max, param6_min
+    real(dl) :: param7_max, param7_min
+    !type(EFTSamplingParameters) :: EFT_sampling_params
+    !> output files
+    real(dl), dimension(100)    :: output_scale_factor, output_xDE_sample, output_EFTOmegaV, output_phi
+    real(dl)                    :: a_now
+    real(dl)                    :: delta_omega_i
+    !integer                     :: i_ic, n_init_cond
+
+    !> error handling stat
+    integer         :: xDE_iostat
+    character(256)  :: xDE_iomsg
+
+    Type( EFTCAMB_timestep_cache ) :: eft_cache_output
+    !> xDE MOD END
 
     logical bad
 
@@ -91,6 +136,112 @@ program stability_sampler
     P%WantScalars = Ini_Read_Logical('get_scalar_cls')
     P%WantVectors = Ini_Read_Logical('get_vector_cls',.false.)
     P%WantTensors = Ini_Read_Logical('get_tensor_cls',.false.)
+
+    !> sources add-on
+    P%Want_CMB =  Ini_Read_Logical('want_CMB',.true.)
+    P%Want_CMB_lensing =  P%Want_CMB .or. Ini_Read_Logical('want_CMB_lensing',.true.)
+
+    if (P%WantScalars) then
+        num_redshiftwindows = Ini_Read_Int('num_redshiftwindows',0)
+    else
+        num_redshiftwindows = 0
+    end if
+    limber_windows = Ini_Read_Logical('limber_windows',limber_windows)
+    if (limber_windows) limber_phiphi = Ini_Read_Int('limber_phiphi',limber_phiphi)
+    if (num_redshiftwindows>0) then
+        DoRedshiftLensing = Ini_Read_Logical('DoRedshiftLensing',.false.)
+        Kmax_Boost = Ini_Read_Double('Kmax_Boost',Kmax_Boost)
+    end if
+    Do21cm = Ini_Read_Logical('Do21cm', .false.)
+    !> AZ TEST: START
+    !write(*,*) "Do21cm", Do21cm
+    !> AZ TEST: END
+    num_extra_redshiftwindows = 0
+    do i=1, num_redshiftwindows
+        RedWin => Redshift_w(i)
+        call InitRedshiftWindow(RedWin)
+        write (numstr,*) i
+        numstr=adjustl(numstr)
+        RedWin%Redshift = Ini_Read_Double('redshift('//trim(numstr)//')')
+        S = Ini_Read_String('redshift_kind('//trim(numstr)//')')
+        if (S=='21cm') then
+            RedWin%kind = window_21cm
+        elseif (S=='counts') then
+            RedWin%kind = window_counts
+        elseif (S=='lensing') then
+            RedWin%kind = window_lensing
+        else
+            write (*,*) i, 'Error: unknown type of window '//trim(S)
+            stop
+        end if
+        RedWin%a = 1/(1+RedWin%Redshift)
+        if (RedWin%kind /= window_21cm) then
+            RedWin%sigma = Ini_Read_Double('redshift_sigma('//trim(numstr)//')')
+            RedWin%sigma_z = RedWin%sigma
+        else
+            Do21cm = .true.
+            RedWin%sigma = Ini_Read_Double('redshift_sigma_Mhz('//trim(numstr)//')')
+            if (RedWin%sigma < 0.003) then
+                write(*,*) 'WARNING:Window very narrow.'
+                write(*,*) ' --> use transfer functions and transfer_21cm_cl =T ?'
+            end if
+            !with 21cm widths are in Mhz, make dimensionless scale factor
+            RedWin%sigma = RedWin%sigma/(f_21cm/1e6)
+            RedWin%sigma_z = RedWin%sigma*(1+RedWin%RedShift)**2
+            write(*,*) i,'delta_z = ', RedWin%sigma_z
+        end if
+        if (RedWin%kind == window_counts) then
+            DoCounts = .true.
+            RedWin%bias = Ini_Read_Double('redshift_bias('//trim(numstr)//')')
+            RedWin%dlog10Ndm = Ini_Read_Double('redshift_dlog10Ndm('//trim(numstr)//')',0.d0)
+            if (DoRedshiftLensing) then
+                num_extra_redshiftwindows=num_extra_redshiftwindows+1
+                RedWin%mag_index = num_extra_redshiftwindows
+            end if
+        end if
+    end do
+
+
+    if (Do21cm) then
+        line_basic = Ini_Read_Logical('line_basic')
+        line_distortions = Ini_read_Logical('line_distortions')
+        line_extra = Ini_Read_Logical('line_extra')
+
+        line_phot_dipole = Ini_read_Logical('line_phot_dipole')
+        line_phot_quadrupole = Ini_Read_Logical('line_phot_quadrupole')
+        line_reionization = Ini_Read_Logical('line_reionization')
+
+        use_mK = Ini_read_Logical('use_mK')
+        if (DebugMsgs) then
+            write (*,*) 'Doing 21cm'
+            write (*,*) 'dipole = ',line_phot_dipole, ' quadrupole =', line_phot_quadrupole
+        end if
+    else
+        line_extra = .false.
+    end if
+
+    if (DoCounts) then
+        counts_density = Ini_read_Logical('counts_density')
+        counts_redshift = Ini_read_Logical('counts_redshift')
+        counts_radial = Ini_read_Logical('counts_radial')
+        counts_evolve = Ini_read_Logical('counts_evolve')
+        counts_timedelay = Ini_read_Logical('counts_timedelay')
+        counts_ISW = Ini_read_Logical('counts_ISW')
+        counts_potential = Ini_read_Logical('counts_potential')
+        counts_velocity = Ini_read_Logical('counts_velocity')
+        !> AZ MOD: START
+        write(*,*) 'counts_density  :', counts_density
+        write(*,*) 'counts_redshift :', counts_redshift
+        write(*,*) 'counts_radial   :', counts_radial
+        write(*,*) 'counts_evolve   :', counts_evolve
+        write(*,*) 'counts_timedelay:', counts_timedelay
+        write(*,*) 'counts_ISW      :', counts_ISW
+        write(*,*) 'counts_potential:', counts_potential
+        write(*,*) 'counts_velocity :', counts_velocity
+        !> AZ MOD: END
+    end if
+
+
 
     P%OutputNormalization=outNone
     output_factor = Ini_Read_Double('CMB_outputscale',1.d0)
@@ -359,75 +510,40 @@ program stability_sampler
     ! get the number of parameters:
     param_number = P%EFTCAMB%model%parameter_number
 
-    ! decide the sampling range:
-    ! if the maximum and minimum of a parameter are specified by the user
-    ! then use those. If they are not decide the range based on the
-    ! value of the parameter entered.
-    if ( param_number == 0 ) then
-        ! if there is no parameter to sample exit
-        stop 0
-    else if ( param_number > 0 ) then
+    !write(*,*) 'number of parameters:', param_number
+    !pause
 
-        ! get the maximum of the first parameter:
-        if ( Ini_HasKey('param_1_max') ) then
-            param_1_max = Ini_Read_Double( 'param_1_max' )
-        else
-            call P%EFTCAMB%model%parameter_values( 1, value = param_1_max )
-        end if
+    !> xDE MOD START
+    !> get the number of parameters in the model
+    model_params_num = P%EFTCAMB%model%parameter_number
+    allocate(random_params(model_params_num))
 
-        ! get the minimum of the first parameter:
-        if ( Ini_HasKey('param_1_min') ) then
-            param_1_min = Ini_Read_Double( 'param_1_min' )
-        else
-            if ( param_1_max < log_sampling_value ) then
-                param_1_min = log_sampling_min
-            else
-                param_1_min = -param_1_max
-            end if
-        end if
+    write(*,*) 'number of parameters:', model_params_num
+    !pause
 
-        ! get log sampling if wanted:
-        do_log_sampling_param_1 = Ini_Read_Logical( 'do_log_sampling_param_1', .False. )
+    !> here I should also get the bounds for the params
+    param1_max = Ini_Read_Double('param1_max', 1.d0)
+    if (model_params_num .ge. 2) param2_max = Ini_Read_Double('param2_max', 1.d0)
+    if (model_params_num .ge. 3) param3_max = Ini_Read_Double('param3_max', 1.d0)
+    if (model_params_num .ge. 4) param4_max = Ini_Read_Double('param4_max', 1.d0)
+    if (model_params_num .ge. 5) param5_max = Ini_Read_Double('param5_max', 1.d0)
+    if (model_params_num .ge. 6) param6_max = Ini_Read_Double('param6_max', 1.d0)
+    if (model_params_num .ge. 7) param7_max = Ini_Read_Double('param7_max', 1.d0)
 
-        if ( param_number > 1 ) then
+    param1_min = Ini_Read_Double('param1_min', -1.d0)
+    if (model_params_num .ge. 2) param2_min = Ini_Read_Double('param2_min', -1.d0)
+    if (model_params_num .ge. 3) param3_min = Ini_Read_Double('param3_min', -1.d0)
+    if (model_params_num .ge. 4) param4_min = Ini_Read_Double('param4_min', -1.d0)
+    if (model_params_num .ge. 5) param5_min = Ini_Read_Double('param5_min', -1.d0)
+    if (model_params_num .ge. 6) param6_min = Ini_Read_Double('param6_min', -1.d0)
+    if (model_params_num .ge. 7) param7_min = Ini_Read_Double('param7_min', -1.d0)
+    !> xDE MOD END
 
-            ! get the maximum of the second parameter:
-            if ( Ini_HasKey('param_2_max') ) then
-                param_2_max = Ini_Read_Double( 'param_2_max' )
-            else
-                call P%EFTCAMB%model%parameter_values( 2, value = param_2_max )
-            end if
-
-            ! get the minimum of the second parameter:
-            if ( Ini_HasKey('param_2_min') ) then
-                param_2_min = Ini_Read_Double( 'param_2_min' )
-            else
-                if ( param_2_max < log_sampling_value ) then
-                    param_2_min = log_sampling_min
-                else
-                    param_2_min = -param_2_max
-                end if
-            end if
-
-            ! get log sampling if wanted:
-            do_log_sampling_param_2 = Ini_Read_Logical( 'do_log_sampling_param_2', .False. )
-
-        else if ( param_number > 2 ) then
-
-            print*, 'EFTCAMB stability sampler error:'
-            print*, ' The model has more than two parameters.'
-            print*, ' Simple sampling algorithms cannot handle that.'
-            stop 1
-
-        end if
-
-    end if
-    sample_points = Ini_Read_Int( 'sample_points',10  )
     call Ini_Close
 
     if (.not. CAMB_ValidateParams(P)) stop 'Stopped due to parameter error'
 
-    FeedbackLevel = 0
+    FeedbackLevel = 2
 
     !Fill the cache
     grhom = 3*P%h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
@@ -497,78 +613,238 @@ program stability_sampler
             P%eft_par_cache%grhormass            = grhormass
             P%eft_par_cache%nu_masses            = nu_masses
             ! 2) now run background initialization:
-            call P%EFTCAMB%model%initialize_background( P%eft_par_cache, P%EFTCAMB%EFTCAMB_feedback_level, success )
-            if ( .not. success ) then
+            !call P%EFTCAMB%model%initialize_background( P%eft_par_cache, P%EFTCAMB%EFTCAMB_feedback_level, success )
+            !if ( .not. success ) then
                 ! global_error_flag         = 1
                 ! global_error_message      = 'EFTCAMB: background solver failed'
                 ! error = global_error_flag
                 ! 5) final feedback:
-                if ( P%EFTCAMB%EFTCAMB_feedback_level > 1 ) then
-                    write(*,'(a)') '***************************************************************'
-                end if
-                call MpiStop('EFTCAMB: background solver failed')
-            end if
+                !if ( P%EFTCAMB%EFTCAMB_feedback_level > 1 ) then
+                    !write(*,'(a)') '***************************************************************'
+                !end if
+                !call MpiStop('EFTCAMB: background solver failed')
+            !end if
           end if
 
-    open(unit=1, file=trim(outroot) //'Stability_Space.dat', action='write')
+    !open(unit=1, name=trim(outroot) // 'Stability_Space.dat', action='write')
     ! do the sampling and save to file:
-    allocate(t1(param_number))
-    astart = 0.1_dl
-    aend = 1._dl
-    k_max = 10._dl
-    if(param_number==1)then
-      call P%EFTCAMB%model%parameter_names( 1, name_1 )
-      write(1,*)'####','   iteration   ', name_1, '               stable  '
-      do i = 0, sample_points
-        t1(1) = param_1_min+i*1._dl/sample_points*(param_1_max-param_1_min)
+    !allocate(t1(param_number))
+    !astart = 0.1_dl
+    !aend = 1._dl
+    !k_max = 10._dl
 
-        call P%EFTCAMB%model%init_model_parameters( t1(1) )
-        success = .true.
-
-        call P%EFTCAMB%model%initialize_background( P%eft_par_cache, P%EFTCAMB%EFTCAMB_feedback_level, success )
-
-        call EFTCAMB_Stability_Check( success, P%EFTCAMB, P%eft_par_cache, astart, aend, k_max )
+    !> xDE MOD START
 
 
-        if (success) then
-          write(1,*)i, t1(1), 1
-        else
-          write(1,*)i, t1(1), 0
-        end if
+    write(*,*) " Opening the files."
+    !> opening the files for the plots
 
-      end do
-    else if (param_number==2) then
-      iter=0
-      call P%EFTCAMB%model%parameter_names( 1, name_1 )
-      call P%EFTCAMB%model%parameter_names( 2, name_2 )
-      write(1,*)'####','   iteration   ', name_1,'                 ', name_2, '               stable  '
-      do j=0, sample_points
-        do i = 0, sample_points
-          iter = iter+1
-          t1(1) = param_1_min+i*1._dl/sample_points*(param_1_max-param_1_min)
-          t1(2) = param_2_min+j*1._dl/sample_points*(param_2_max-param_2_min)
+    open(unit=31, file = trim(outroot) // 'IC_cls_TT.dat',     status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_TT.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
 
-          call P%EFTCAMB%model%init_model_parameters( t1 )
-          success = .true.
-          call P%EFTCAMB%model%initialize_background( P%eft_par_cache, P%EFTCAMB%EFTCAMB_feedback_level, success )
-          call EFTCAMB_Stability_Check( success, P%EFTCAMB, P%eft_par_cache, astart, aend, k_max )
+    open(unit=30, file = trim(outroot) // 'IC_cls_TxW1.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining IC_cls_TxW1.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
 
-          if (success) then
-            write(1,*)iter, t1(1),t1(2), 1
-          else
-            write(1,*)iter, t1(1),t1(2), 0
-          end if
+    open(unit=217, file = trim(outroot) // 'IC_cls_TxW2.dat',  status='unknown', iostat=xDE_iostat, iomsg=xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_TxW2.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
 
-        end do
-      end do
+    open(unit=35, file = trim(outroot) // 'IC_cls_TxW3.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg,recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_TxW3.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=36, file = trim(outroot) // 'IC_cls_W1xW1.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_W1xW1.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=37, file = trim(outroot) // 'IC_cls_W2xW2.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_W2xW2.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=38, file = trim(outroot) // 'IC_cls_W3xW3.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_cls_W3xW3.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=32, file = trim(outroot) // 'IC_delta_Om.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_delta_Om.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=88, file = trim(outroot) // 'IC_EFTOmega.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining xDE_EFTOmega.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
     end if
 
 
-    close(1)
+    open(unit=98, file = trim(outroot) // 'scale_factor.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining scale_factor.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    open(unit=22, file = trim(outroot) // 'init_cond.dat',      status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    if (xDE_iostat /= 0 ) then
+        write(*,*) 'Opeining init_cond.dat failed with', xDE_iostat, xDE_iomsg
+        !pause
+    end if
+
+    write(*,*) "files opened"
+
+
+    !> building the scale factor array
+    do i = 1, 100
+        output_scale_factor(i) = 1.d-3 + (i-1) * (1.d0 - 1.d-3)/99
+        write(98,*) output_scale_factor(i)
+    end do
+
+    !> fix a few things here
+    astart = 0.01_dl
+    aend = 1._dl
+    k_max = 10._dl
+    i_sample = 1
+
+    write(*,*) "    Sampling the Initial Conditions"
+
+    do while ( num_success < n_samples )! .and. i_sample < 10000000)
+
+        write(*,*) 'Monte Carlo Step:',i_sample,'. Successfull reconstruction n.:', num_success, ' /', n_samples
+
+        !> randomly drawing the parameters for the models (uniform distribution)
+        call random_number(random_params)
+
+        !> now adjust the parameters range
+        random_params(1) = param1_min+random_params(1)*(param1_max-param1_min)
+        if ( model_params_num .ge. 2 )  random_params(2) = param2_min+random_params(2)*(param2_max-param2_min)
+        if ( model_params_num .ge. 3 )  random_params(3) = param3_min+random_params(3)*(param3_max-param3_min)
+        if ( model_params_num .ge. 4 )  random_params(4) = param4_min+random_params(4)*(param4_max-param4_min)
+        if ( model_params_num .ge. 5 )  random_params(5) = param5_min+random_params(5)*(param5_max-param5_min)
+        if ( model_params_num .ge. 6 )  random_params(6) = param6_min+random_params(6)*(param6_max-param6_min)
+        if ( model_params_num .ge. 7 )  random_params(7) = param7_min+random_params(7)*(param7_max-param7_min)
+
+        !> then I need to initialize the model with these parameters
+        !> intializing model parameters
+        call P%EFTCAMB%model%init_model_parameters( random_params )
+
+        !> and then solve the background
+        success = .true.
+        call P%EFTCAMB%model%initialize_background( P%eft_par_cache, P%EFTCAMB%EFTCAMB_feedback_level, success )
+
+        !> if the theory is stable, call CAMB
+        if (success) then
+
+            write(*,*) "Model Parameters:", random_params
+
+            success = .true.
+            call EFTCAMB_Stability_Check( success, P%EFTCAMB, P%eft_par_cache, astart, aend, k_max )
+
+            if(success) then
+
+                call eft_cache_output%initialize
+                call  P%EFTCAMB%model%compute_background_EFT_functions(1._dl, P%eft_par_cache, eft_cache_output )
+
+                delta_omega_i = eft_cache_output%EFTOmegaV
+                write(*,*) 'Delta Omega:',delta_omega_i
+
+                if (abs(delta_omega_i) .le. 5.d-1) then
+
+                write(*,*) 'theory stable!!! Woooo!'
+                    num_success = num_success+1
+
+                    !> call CAMB
+                    write(*,*) 'Calling CAMB'
+                    call CAMB_GetResults(P)
+
+                    !> Re-computing Omega(a)
+                    do i = 1, 100
+                        a_now = output_scale_factor(i)
+                        !> fill the EFT cache
+                        call  P%EFTCAMB%model%compute_background_EFT_functions(a_now, P%eft_par_cache, eft_cache_output )
+                        output_EFTOmegaV(i) = eft_cache_output%EFTOmegaV
+                        if ( i == 100 .and. (abs(output_EFTOmegaV(i) - 1.d0) <1.d-10 )) write(*,*) '1+Omega(1) = 1!!!'
+                    end do
+
+                    write(*,*) 'Dumping data in files'
+                    !> dump in files
+                    write(*,*) '    dumping delta_omega'
+                    write(32,*) delta_omega_i                   !< dumping Delta Omega(a)
+                    write(*,*) '    dumping Omega(a)'
+                    write(88,*) output_EFTOmegaV                !< dumping Omega(a)
+                    write(*,*) '    dumping initial conditions'
+                    write(22,*) random_params                   !< dumping initial conditions
+
+
+                    !> dump cls in file
+                    !> first write the CMB TT spectra
+                    write(*,*) '    dumping Cls TT'
+                    write(31,*) output_factor*Cl_scalar(:,1,1)
+
+                    !> Then write the CMB-GNC cross correlations
+                    write(*,*) '    dumping Cls TxW1'
+                    write(30,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,4)
+                    write(*,*) '    dumping Cls TxW2'
+                    write(217,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,5)
+                    write(*,*) '    dumping Cls TxW3'
+                    write(35,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,6)
+
+                    !> Write the GNC self-correlations
+                    write(*,*) '    dumping Cls W1xW1'
+                    write(36,*) Cl_Scalar_Array(:,1,4,4)
+                    write(*,*) '    dumping Cls W2xW2'
+                    write(37,*) Cl_Scalar_Array(:,1,5,5)
+                    write(*,*) '    dumping Cls W3xW3'
+                    write(38,*) Cl_Scalar_Array(:,1,6,6)
+
+
+                end if ! if delta omega < 0.5
+
+
+            end if !< if theory is stable
+
+        end if !< if the background is solved successfully
+
+
+        i_sample = i_sample + 1
+
+    end do !< end do on the IC sampling
+
+    close(33)
+    close(31)
+    close(30)
+    close(32)
+    close(88)
+    close(22)
+    close(217)
+    close(35)
+    close(36)
+    close(37)
+    close(38)
+
+!> xDE MOD END
+
+!> xDE MOD END
+
 
     call CAMB_cleanup
     ! stop
 
 100 stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
 
-end program stability_sampler
+end program IC_sampler

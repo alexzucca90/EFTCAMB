@@ -150,16 +150,16 @@
         counts_ISW = Ini_read_Logical('counts_ISW')
         counts_potential = Ini_read_Logical('counts_potential')
         counts_velocity = Ini_read_Logical('counts_velocity')
-!> AZ MOD: START
-write(*,*) 'counts_density  :', counts_density
-write(*,*) 'counts_redshift :', counts_redshift
-write(*,*) 'counts_radial   :', counts_radial
-write(*,*) 'counts_evolve   :', counts_evolve
-write(*,*) 'counts_timedelay:', counts_timedelay
-write(*,*) 'counts_ISW      :', counts_ISW
-write(*,*) 'counts_potential:', counts_potential
-write(*,*) 'counts_velocity :', counts_velocity
-!> AZ MOD: END
+        !> AZ MOD: START
+        write(*,*) 'counts_density  :', counts_density
+        write(*,*) 'counts_redshift :', counts_redshift
+        write(*,*) 'counts_radial   :', counts_radial
+        write(*,*) 'counts_evolve   :', counts_evolve
+        write(*,*) 'counts_timedelay:', counts_timedelay
+        write(*,*) 'counts_ISW      :', counts_ISW
+        write(*,*) 'counts_potential:', counts_potential
+        write(*,*) 'counts_velocity :', counts_velocity
+        !> AZ MOD: END
     end if
 
     P%OutputNormalization=outNone
