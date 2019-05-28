@@ -1,4 +1,4 @@
-MODULE random
+MODULE random_eftcamb
 ! A module for random number generation from the following distributions:
 !
 !     Distribution                    Function/subroutine name
@@ -1767,4 +1767,4 @@ DEALLOCATE( seed )
 END SUBROUTINE seed_random_number
 
 
-END MODULE random
+END MODULE random_eftcamb

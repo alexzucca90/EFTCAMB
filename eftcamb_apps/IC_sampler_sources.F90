@@ -47,6 +47,7 @@ program IC_sampler
     !> use the sampling xDE class
     !use EFT_sampler
     use EFTCAMB_cache
+    use random_eftcamb
     ! use EFTCAMB_cache
 #ifdef NAGF95
     use F90_UNIX
