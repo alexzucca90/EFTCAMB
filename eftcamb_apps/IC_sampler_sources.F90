@@ -111,6 +111,7 @@ logical :: DoCounts = .false.
     !> error handling stat
     integer         :: xDE_iostat
     character(256)  :: xDE_iomsg
+    integer :: i_num_par
 
     Type( EFTCAMB_timestep_cache ) :: eft_cache_output
     !> xDE MOD END
@@ -639,13 +640,13 @@ logical :: DoCounts = .false.
     write(*,*) " Opening the files."
     !> opening the files for the plots
 
-    open(unit=31, file = trim(outroot) // 'IC_cls_TT.dat',     status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=750, file = trim(outroot) // 'IC_cls_TT.dat',     status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_cls_TT.dat failed with', xDE_iostat, xDE_iomsg
         !pause
     end if
 
-    open(unit=30, file = trim(outroot) // 'IC_cls_TxW1.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=751, file = trim(outroot) // 'IC_cls_TxW1.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining IC_cls_TxW1.dat failed with', xDE_iostat, xDE_iomsg
         !pause
@@ -657,31 +658,31 @@ logical :: DoCounts = .false.
         !pause
     end if
 
-    open(unit=35, file = trim(outroot) // 'IC_cls_TxW3.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg,recl=99999 )
+    open(unit=753, file = trim(outroot) // 'IC_cls_TxW3.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg,recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_cls_TxW3.dat failed with', xDE_iostat, xDE_iomsg
         !pause
     end if
 
-    open(unit=36, file = trim(outroot) // 'IC_cls_W1xW1.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=754, file = trim(outroot) // 'IC_cls_W1xW1.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_cls_W1xW1.dat failed with', xDE_iostat, xDE_iomsg
         !pause
     end if
 
-    open(unit=37, file = trim(outroot) // 'IC_cls_W2xW2.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=755, file = trim(outroot) // 'IC_cls_W2xW2.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_cls_W2xW2.dat failed with', xDE_iostat, xDE_iomsg
         !pause
     end if
 
-    open(unit=38, file = trim(outroot) // 'IC_cls_W3xW3.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=756, file = trim(outroot) // 'IC_cls_W3xW3.dat',  status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_cls_W3xW3.dat failed with', xDE_iostat, xDE_iomsg
         !pause
     end if
 
-    open(unit=32, file = trim(outroot) // 'IC_delta_Om.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
+    open(unit=752, file = trim(outroot) // 'IC_delta_Om.dat',   status = 'unknown', iostat = xDE_iostat, iomsg = xDE_iomsg, recl=99999 )
     if (xDE_iostat /= 0 ) then
         write(*,*) 'Opeining xDE_delta_Om.dat failed with', xDE_iostat, xDE_iomsg
         !pause
@@ -731,13 +732,33 @@ logical :: DoCounts = .false.
         call random_number(random_params)
 
         !> now adjust the parameters range
-        random_params(1) = param1_min+random_params(1)*(param1_max-param1_min)
-        if ( model_params_num .ge. 2 )  random_params(2) = param2_min+random_params(2)*(param2_max-param2_min)
-        if ( model_params_num .ge. 3 )  random_params(3) = param3_min+random_params(3)*(param3_max-param3_min)
-        if ( model_params_num .ge. 4 )  random_params(4) = param4_min+random_params(4)*(param4_max-param4_min)
-        if ( model_params_num .ge. 5 )  random_params(5) = param5_min+random_params(5)*(param5_max-param5_min)
-        if ( model_params_num .ge. 6 )  random_params(6) = param6_min+random_params(6)*(param6_max-param6_min)
-        if ( model_params_num .ge. 7 )  random_params(7) = param7_min+random_params(7)*(param7_max-param7_min)
+        !random_params(1) = param1_min+random_params(1)*(param1_max-param1_min)
+        !if ( model_params_num .ge. 2 )  random_params(2) = param2_min+random_params(2)*(param2_max-param2_min)
+        !if ( model_params_num .ge. 3 )  random_params(3) = param3_min+random_params(3)*(param3_max-param3_min)
+        !if ( model_params_num .ge. 4 )  random_params(4) = param4_min+random_params(4)*(param4_max-param4_min)
+        !if ( model_params_num .ge. 5 )  random_params(5) = param5_min+random_params(5)*(param5_max-param5_min)
+        !if ( model_params_num .ge. 6 )  random_params(6) = param6_min+random_params(6)*(param6_max-param6_min)
+        !if ( model_params_num .ge. 7 )  random_params(7) = param7_min+random_params(7)*(param7_max-param7_min)
+
+        do i_num_par=1, model_params_num
+            select case ( i_num_par )
+                case (1)
+                    random_params(1)=param1_min+random_params(1)*(param1_max-param1_min)
+                case(2)
+                    random_params(2) = param2_min+random_params(2)*(param2_max-param2_min)
+                case(3)
+                    random_params(3) = param3_min+random_params(3)*(param3_max-param3_min)
+                case(4)
+                    random_params(4) = param4_min+random_params(4)*(param4_max-param4_min)
+                case(5)
+                    random_params(5) = param5_min+random_params(5)*(param5_max-param5_min)
+                case(6)
+                    random_params(6) = param6_min+random_params(6)*(param6_max-param6_min)
+                case(7)
+                    random_params(7) = param7_min+random_params(7)*(param7_max-param7_min)
+            end select
+
+        end do
 
         !> then I need to initialize the model with these parameters
         !> intializing model parameters
@@ -784,7 +805,7 @@ logical :: DoCounts = .false.
                     write(*,*) 'Dumping data in files'
                     !> dump in files
                     write(*,*) '    dumping delta_omega'
-                    write(32,*) delta_omega_i                   !< dumping Delta Omega(a)
+                    write(752,*) delta_omega_i                   !< dumping Delta Omega(a)
                     write(*,*) '    dumping Omega(a)'
                     write(88,*) output_EFTOmegaV                !< dumping Omega(a)
                     write(*,*) '    dumping initial conditions'
@@ -794,23 +815,23 @@ logical :: DoCounts = .false.
                     !> dump cls in file
                     !> first write the CMB TT spectra
                     write(*,*) '    dumping Cls TT'
-                    write(31,*) output_factor*Cl_scalar(:,1,1)
+                    write(750,*) output_factor*Cl_scalar(:,1,1)
 
                     !> Then write the CMB-GNC cross correlations
                     write(*,*) '    dumping Cls TxW1'
-                    write(30,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,4)
+                    write(751,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,4)
                     write(*,*) '    dumping Cls TxW2'
                     write(217,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,5)
                     write(*,*) '    dumping Cls TxW3'
-                    write(35,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,6)
+                    write(753,*) sqrt(output_factor)*Cl_Scalar_Array(:,1,1,6)
 
                     !> Write the GNC self-correlations
                     write(*,*) '    dumping Cls W1xW1'
-                    write(36,*) Cl_Scalar_Array(:,1,4,4)
+                    write(754,*) Cl_Scalar_Array(:,1,4,4)
                     write(*,*) '    dumping Cls W2xW2'
-                    write(37,*) Cl_Scalar_Array(:,1,5,5)
+                    write(755,*) Cl_Scalar_Array(:,1,5,5)
                     write(*,*) '    dumping Cls W3xW3'
-                    write(38,*) Cl_Scalar_Array(:,1,6,6)
+                    write(756,*) Cl_Scalar_Array(:,1,6,6)
 
 
                 end if ! if delta omega < 0.5
@@ -825,17 +846,16 @@ logical :: DoCounts = .false.
 
     end do !< end do on the IC sampling
 
-    close(33)
-    close(31)
-    close(30)
-    close(32)
+    close(750)
+    close(751)
+    close(752)
     close(88)
     close(22)
     close(217)
-    close(35)
-    close(36)
-    close(37)
-    close(38)
+    close(753)
+    close(754)
+    close(755)
+    close(756)
 
 !> xDE MOD END
 
