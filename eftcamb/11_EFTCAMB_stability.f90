@@ -95,7 +95,7 @@ contains
                         write(*,*)
                         write(*,'(a,E14.4)') '   Instability detected at a =', Atest
                     end if
-                    exit
+                    !exit
                 end if
             end do
         end if
@@ -112,7 +112,7 @@ contains
                         write(*,*)
                         write(*,'(a,E14.4)') '   Instability detected at a =', Atest
                     end if
-                    exit
+                    !exit
                 end if
             end do
         end if
@@ -128,7 +128,7 @@ contains
                         write(*,*)
                         write(*,'(a,E14.4)') '   Instability detected at a =', Atest
                     end if
-                    exit
+                    !exit
                 end if
             end do
         end if
@@ -353,14 +353,21 @@ contains
             ! 1 - Check first mass eigenvalue
             if ( eft_cache%EFT_mu1 < -eft_cache%adotoa**2/a**2 .and. a>input_EFTCAMB%EFTCAMB_turn_on_time) then
                 EFTTestStability = .false.
-                if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,'(a,E11.4)') '   Physical instability: Mass instability. mu_1 = ', eft_cache%EFT_mu1
+                !if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,'(a,E11.4)') '   Physical instability: Mass instability. mu_1 = ', eft_cache%EFT_mu1
+                if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,*) '   Physical instability: Mass instability. mu_1, hubble2 = ', eft_cache%EFT_mu1, eft_cache%adotoa**2/a**2
             end if
 
             ! 2 - Check second mass eigenvalue
             if ( eft_cache%EFT_mu2 < -eft_cache%adotoa**2/a**2 .and. a>input_EFTCAMB%EFTCAMB_turn_on_time) then
                 EFTTestStability = .false.
-                if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,'(a,E11.4)') '   Physical instability: Mass instability. mu_2 = ', eft_cache%EFT_mu2
+                !if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,'(a,E11.4)') '   Physical instability: Mass instability. mu_2 = ', eft_cache%EFT_mu2
+                if ( input_EFTCAMB%EFTCAMB_feedback_level > 1 ) write(*,*) '   Physical instability: Mass instability. mu_2, hubble2 = ', eft_cache%EFT_mu2, eft_cache%adotoa**2/a**2
             end if
+
+!> AZ MOD START
+write(98,*) a, eft_cache%EFT_mu1, eft_cache%EFT_mu2, eft_cache%adotoa**2/a**2
+!< AZ MOD END
+
 
         end if
 

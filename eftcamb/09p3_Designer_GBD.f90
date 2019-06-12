@@ -783,8 +783,10 @@ contains
                     write (33,'(20E15.5)') a, phi, dphi, ddphi,V,adotoa,adotdotoa,(1._dl + ompp)/omp,                   &
                                             (1._dl+0.5_dl*(3._dl*Em+4._dl*Er-Enu_p-X_p)/(Em+Er+Enu+X)),                 & !8
                                             ((om - 1._dl)*(3._dl * Em + 4._dl * Er - Enu_p) - om*X_p)/omp/(Em+Er+Enu+X),& !9
-                                            X_p, Em, Er, self%EFTOmega%y(ind), self%EFTc%y(ind), self%EFTLambda%y(ind)
+                                            X_p, Em, Er, self%EFTOmega%y(ind), self%EFTc%y(ind), self%EFTLambda%y(ind), &
                                             !10  11  12    13                   14                  15
+                                            X
+                                            ! 16
                 end if
             end if
 

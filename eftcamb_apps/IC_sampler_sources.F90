@@ -732,15 +732,6 @@ logical :: DoCounts = .false.
         !> randomly drawing the parameters for the models (uniform distribution)
         call random_number(random_params)
 
-        !> now adjust the parameters range
-        !random_params(1) = param1_min+random_params(1)*(param1_max-param1_min)
-        !if ( model_params_num .ge. 2 )  random_params(2) = param2_min+random_params(2)*(param2_max-param2_min)
-        !if ( model_params_num .ge. 3 )  random_params(3) = param3_min+random_params(3)*(param3_max-param3_min)
-        !if ( model_params_num .ge. 4 )  random_params(4) = param4_min+random_params(4)*(param4_max-param4_min)
-        !if ( model_params_num .ge. 5 )  random_params(5) = param5_min+random_params(5)*(param5_max-param5_min)
-        !if ( model_params_num .ge. 6 )  random_params(6) = param6_min+random_params(6)*(param6_max-param6_min)
-        !if ( model_params_num .ge. 7 )  random_params(7) = param7_min+random_params(7)*(param7_max-param7_min)
-
         do i_num_par=1, model_params_num
             select case ( i_num_par )
                 case (1)
